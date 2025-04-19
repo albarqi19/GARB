@@ -2,14 +2,14 @@ const { createApp, ref, computed } = Vue;
 
 // تهيئة Firebase
 const firebaseConfig = {
-  apiKey: "AIzaSyCJ_w62Y8FMgui47dJLOD4ftGvModi5hEs",
-  authDomain: "garb-7e365.firebaseapp.com",
-  databaseURL: "https://garb-7e365-default-rtdb.firebaseio.com",
-  projectId: "garb-7e365",
-  storageBucket: "garb-7e365.firebasestorage.app",
-  messagingSenderId: "394664139764",
-  appId: "1:394664139764:web:fc783964a979ad0856b7a1",
-  measurementId: "G-PXFVF6P8YE"
+  apiKey: "AIzaSyDUgjgPoMLUPMqMuxLI3SAY54x84Wl-_vc",
+  authDomain: "garb1-4820a.firebaseapp.com",
+  databaseURL: "https://garb1-4820a-default-rtdb.firebaseio.com",
+  projectId: "garb1-4820a",
+  storageBucket: "garb1-4820a.firebasestorage.app",
+  messagingSenderId: "809840688426",
+  appId: "1:809840688426:web:f873f2f1dd27b829d43253",
+  measurementId: "G-XT8DMSBT3M"
 };
 
 // تهيئة Firebase
@@ -161,28 +161,30 @@ const app = createApp({
                 isLoading.value = true;
                 const phasesRef = database.ref('phases');
                 
-                phasesRef.on('value', (snapshot) => {
-                    const data = snapshot.val();
-                    if (data) {
-                        // تحويل البيانات من تنسيق القاموس إلى مصفوفة
-                        const phasesArray = Object.values(data);
-                        // ترتيب المراحل حسب معرف المرحلة
-                        phasesArray.sort((a, b) => a.id - b.id);
-                        phases.value = phasesArray;
-                        showNotification('تم جلب البيانات بنجاح');
-                    } else {
-                        // إذا لم تكن هناك بيانات، نستخدم البيانات الافتراضية ونحفظها
-                        saveToFirebase();
-                    }
-                    isLoading.value = false;
-                }, (error) => {
-                    console.error('خطأ في جلب البيانات:', error);
-                    showNotification('حدث خطأ أثناء جلب البيانات');
-                    isLoading.value = false;
-                });
+                // استخدام طريقة get بدلاً من on للحصول على البيانات مرة واحدة
+                const snapshot = await phasesRef.get();
+                const data = snapshot.val();
+                
+                if (data) {
+                    // تحويل البيانات من تنسيق القاموس إلى مصفوفة
+                    const phasesArray = Object.values(data);
+                    // ترتيب المراحل حسب معرف المرحلة
+                    phasesArray.sort((a, b) => a.id - b.id);
+                    phases.value = phasesArray;
+                    console.log('تم جلب البيانات:', phasesArray);
+                } else {
+                    // إذا لم تكن هناك بيانات، نستخدم البيانات الافتراضية ونحفظها
+                    console.log('لا توجد بيانات، استخدام البيانات الافتراضية');
+                    saveToFirebase();
+                }
+                
+                // بعد جلب البيانات، نبدأ بمراقبة التغييرات في الوقت الفعلي
+                setupRealtimeUpdates();
+                
             } catch (error) {
-                console.error('خطأ في جلب البيانات:', error.message);
+                console.error('خطأ في جلب البيانات:', error);
                 showNotification('حدث خطأ أثناء جلب البيانات');
+            } finally {
                 isLoading.value = false;
             }
         };
@@ -192,24 +194,77 @@ const app = createApp({
             try {
                 isLoading.value = true;
                 
+                // تسجيل البيانات التي سيتم حفظها للتصحيح
+                console.log('حفظ البيانات في Firebase:', phases.value);
+                
                 // حفظ كل مرحلة كعنصر منفصل في قاعدة البيانات
                 const phasesRef = database.ref('phases');
                 
                 // حذف البيانات الحالية ثم إضافة البيانات الجديدة
-                await phasesRef.remove();
+                await phasesRef.set({}); // استخدام set بدلاً من remove لتجنب مشاكل التزامن
                 
                 // إضافة كل مرحلة كعنصر منفصل مع استخدام معرف المرحلة كمفتاح
+                const updates = {};
                 for (const phase of phases.value) {
-                    await phasesRef.child(phase.id.toString()).set(phase);
+                    updates[phase.id.toString()] = phase;
                 }
+                
+                // تحديث كل المراحل دفعة واحدة باستخدام update
+                await phasesRef.update(updates);
                 
                 showNotification('تم حفظ البيانات بنجاح!');
             } catch (error) {
-                console.error('خطأ في حفظ البيانات:', error.message);
+                console.error('خطأ في حفظ البيانات:', error);
                 showNotification('حدث خطأ أثناء حفظ البيانات');
             } finally {
                 isLoading.value = false;
             }
+        };
+
+        // إعداد التحديثات في الوقت الفعلي
+        const setupRealtimeUpdates = () => {
+            const phasesRef = database.ref('phases');
+            
+            // الاستماع للتغييرات في قاعدة البيانات
+            phasesRef.on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    // تحويل البيانات من تنسيق القاموس إلى مصفوفة
+                    const phasesArray = Object.values(data);
+                    // ترتيب المراحل حسب معرف المرحلة
+                    phasesArray.sort((a, b) => a.id - b.id);
+                    
+                    // نتحقق ما إذا كانت البيانات مختلفة عن البيانات الحالية
+                    const currentData = JSON.stringify(phases.value);
+                    const newData = JSON.stringify(phasesArray);
+                    
+                    if (currentData !== newData) {
+                        console.log('تم استلام تحديث من قاعدة البيانات');
+                        phases.value = phasesArray;
+                    }
+                }
+            }, (error) => {
+                console.error('خطأ في مراقبة التغييرات:', error);
+            });
+        };
+
+        // مراقبة تغييرات المهام وحفظها تلقائياً
+        const watchTaskChanges = () => {
+            let saveTimeout = null;
+            
+            // إضافة watcher لمراقبة تغييرات phases
+            Vue.watch(
+                phases,
+                () => {
+                    // منع تنفيذ الحفظ عدة مرات متتالية عند حدوث تغييرات متعددة
+                    clearTimeout(saveTimeout);
+                    saveTimeout = setTimeout(() => {
+                        saveToFirebase();
+                        updateLastUpdated();
+                    }, 1000); // تأخير الحفظ لمدة ثانية واحدة للسماح بتجميع التغييرات
+                },
+                { deep: true } // مراقبة عميقة للكشف عن أي تغيير في الكائن
+            );
         };
 
         // Secret method to handle logo clicks
@@ -304,6 +359,9 @@ const app = createApp({
                         task.completed = false;
                     });
                 }
+                
+                // حفظ التغييرات تلقائيًا
+                saveToFirebase();
             }
         };
 
@@ -561,6 +619,9 @@ const app = createApp({
             
             // جلب البيانات عند بدء التطبيق
             loadSavedData();
+            
+            // بدء مراقبة التغييرات في المهام
+            watchTaskChanges();
         });
 
         // Remove event listener when the app is unmounted
