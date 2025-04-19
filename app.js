@@ -106,15 +106,36 @@ const app = createApp({
         // Create a deep copy of original phases for reactivity
         const phases = ref(JSON.parse(JSON.stringify(originalPhases)));
 
-        // تعديل: عد تنازلي ثابت (20 يوم)
-        const countdown = computed(() => {
-            return {
-                days: 20,
-                hours: 0,
-                minutes: 0,
-                total: 20 * 24 * 60 * 60 * 1000
-            };
+        // تاريخ اليوم وتاريخ الانتهاء (30 يوم من الآن)
+        const today = ref(new Date()); // تاريخ اليوم
+        const launchDate = ref(new Date(today.value));
+        launchDate.value.setDate(today.value.getDate() + 30); // إضافة 30 يوم إلى تاريخ اليوم
+        
+        // Contador regresivo dinámico
+        const countdown = ref({
+            days: 0,
+            hours: 0,
+            minutes: 0,
+            seconds: 0
         });
+        
+        // Función para actualizar el contador regresivo
+        const updateCountdown = () => {
+            const now = new Date();
+            const timeLeft = launchDate.value.getTime() - now.getTime();
+            
+            if (timeLeft <= 0) {
+                countdown.value = { days: 0, hours: 0, minutes: 0, seconds: 0 };
+                return;
+            }
+            
+            const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+            
+            countdown.value = { days, hours, minutes, seconds };
+        };
 
         // Secret method to handle logo clicks
         const handleLogoClick = () => {
@@ -429,9 +450,8 @@ const app = createApp({
 
             // Start countdown timer
             setInterval(() => {
-                // Force update of countdown computed property
-                lastUpdated.value = new Date(lastUpdated.value.getTime());
-            }, 60000); // Update every minute
+                updateCountdown();
+            }, 1000); // Update every second
         });
 
         // Remove event listener when the app is unmounted

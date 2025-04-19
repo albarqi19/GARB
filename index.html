@@ -173,12 +173,28 @@
                             <p>{{ remainingPhasesCount }}</p>
                         </div>
                     </div>
-                    <div class="dashboard-card">
-                        <div class="card-icon"><i class="fas fa-calendar-alt"></i></div>
-                        <div class="card-info">
-                            <h3>العد التنازلي للإطلاق</h3>
-                            <p>{{ countdown.days }} يوم {{ countdown.hours }} ساعة</p>
-                        </div>
+                </div>
+                
+                <!-- Countdown Timer -->
+                <div class="countdown-container">
+                    <div class="countdown-item">
+                        <div class="countdown-value">{{ countdown.days }}</div>
+                        <div class="countdown-label">يوم</div>
+                    </div>
+                    <div class="countdown-separator">:</div>
+                    <div class="countdown-item">
+                        <div class="countdown-value">{{ countdown.hours }}</div>
+                        <div class="countdown-label">ساعة</div>
+                    </div>
+                    <div class="countdown-separator">:</div>
+                    <div class="countdown-item">
+                        <div class="countdown-value">{{ countdown.minutes }}</div>
+                        <div class="countdown-label">دقيقة</div>
+                    </div>
+                    <div class="countdown-separator">:</div>
+                    <div class="countdown-item">
+                        <div class="countdown-value">{{ countdown.seconds }}</div>
+                        <div class="countdown-label">ثانية</div>
                     </div>
                 </div>
 
