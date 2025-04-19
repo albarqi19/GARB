@@ -1,5 +1,10 @@
 const { createApp, ref, computed } = Vue;
 
+// Supabase تهيئة
+const supabaseUrl = 'YOUR_SUPABASE_URL'; // استبدل بالرابط الخاص بك
+const supabaseKey = 'YOUR_SUPABASE_ANON_KEY'; // استبدل بالمفتاح الخاص بك
+const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
 const app = createApp({
     setup() {
         // Admin panel state
@@ -10,6 +15,8 @@ const app = createApp({
         const secretClickCounter = ref(0);
         // Timer for resetting click counter
         let clickTimer = null;
+        // حالة التحميل
+        const isLoading = ref(false);
 
         // New phase form
         const newPhase = ref({
@@ -133,6 +140,65 @@ const app = createApp({
             const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
             
             countdown.value = { days, hours, minutes, seconds };
+        };
+
+        // Supabase وظائف التعامل مع
+
+        // جلب البيانات من Supabase
+        const fetchPhasesFromSupabase = async () => {
+            try {
+                isLoading.value = true;
+                const { data, error } = await supabase
+                    .from('phases')
+                    .select('*')
+                    .order('id', { ascending: true });
+
+                if (error) {
+                    throw error;
+                }
+
+                if (data && data.length > 0) {
+                    phases.value = data;
+                    showNotification('تم جلب البيانات بنجاح');
+                } else {
+                    // إذا لم تكن هناك بيانات، نستخدم البيانات الافتراضية ونحفظها
+                    await saveToSupabase();
+                }
+            } catch (error) {
+                console.error('خطأ في جلب البيانات:', error.message);
+                showNotification('حدث خطأ أثناء جلب البيانات');
+            } finally {
+                isLoading.value = false;
+            }
+        };
+
+        // حفظ البيانات في Supabase
+        const saveToSupabase = async () => {
+            try {
+                isLoading.value = true;
+                
+                // حذف جميع البيانات السابقة
+                const { error: deleteError } = await supabase
+                    .from('phases')
+                    .delete()
+                    .not('id', 'is', null);
+                
+                if (deleteError) throw deleteError;
+                
+                // إضافة البيانات الجديدة
+                const { error: insertError } = await supabase
+                    .from('phases')
+                    .insert(phases.value);
+                
+                if (insertError) throw insertError;
+                
+                showNotification('تم حفظ البيانات بنجاح!');
+            } catch (error) {
+                console.error('خطأ في حفظ البيانات:', error.message);
+                showNotification('حدث خطأ أثناء حفظ البيانات');
+            } finally {
+                isLoading.value = false;
+            }
         };
 
         // Secret method to handle logo clicks
@@ -351,25 +417,56 @@ const app = createApp({
             }
         };
 
-        // Save changes to local storage (for demonstration purposes)
-        const saveChanges = () => {
+        // Save changes to both local storage and Supabase
+        const saveChanges = async () => {
+            // حفظ في التخزين المحلي للاحتياط
             localStorage.setItem('projectPhases', JSON.stringify(phases.value));
             localStorage.setItem('adminEnabled', adminButtonVisible.value);
-            showNotification('تم حفظ التغييرات بنجاح!');
+            
+            // حفظ في Supabase
+            await saveToSupabase();
+            
+            // تحديث تاريخ آخر تحديث
+            updateLastUpdated();
         };
 
         // Reset phases to original state
-        const resetPhases = () => {
-            phases.value = JSON.parse(JSON.stringify(originalPhases));
-            localStorage.removeItem('projectPhases');
-            alert('تم إعادة تعيين المراحل بنجاح!');
+        const resetPhases = async () => {
+            if (confirm('هل أنت متأكد من إعادة تعيين جميع المراحل؟ سيتم حذف جميع التقدم المحفوظ.')) {
+                phases.value = JSON.parse(JSON.stringify(originalPhases));
+                localStorage.removeItem('projectPhases');
+                
+                // إعادة تعيين البيانات في Supabase أيضاً
+                await saveToSupabase();
+                
+                showNotification('تم إعادة تعيين المراحل بنجاح!');
+            }
         };
 
         // Load saved data if exists
-        const loadSavedData = () => {
-            const savedPhases = localStorage.getItem('projectPhases');
-            if (savedPhases) {
-                phases.value = JSON.parse(savedPhases);
+        const loadSavedData = async () => {
+            try {
+                // محاولة جلب البيانات من Supabase أولاً
+                await fetchPhasesFromSupabase();
+                
+                // إذا فشلت العملية، استخدام التخزين المحلي كاحتياطي
+                if (phases.value.length === 0) {
+                    const savedPhases = localStorage.getItem('projectPhases');
+                    if (savedPhases) {
+                        phases.value = JSON.parse(savedPhases);
+                        
+                        // حفظ البيانات المحلية إلى Supabase
+                        await saveToSupabase();
+                    }
+                }
+            } catch (error) {
+                console.error('خطأ في تحميل البيانات:', error);
+                
+                // في حالة الخطأ، استخدام التخزين المحلي
+                const savedPhases = localStorage.getItem('projectPhases');
+                if (savedPhases) {
+                    phases.value = JSON.parse(savedPhases);
+                }
             }
         };
 
@@ -450,6 +547,14 @@ const app = createApp({
             setInterval(() => {
                 updateCountdown();
             }, 1000); // Update every second
+            
+            // جلب البيانات عند بدء التطبيق
+            loadSavedData();
+            
+            // تشغيل التحديث التلقائي كل دقيقة لمزامنة البيانات
+            setInterval(() => {
+                fetchPhasesFromSupabase();
+            }, 60000); // تحديث كل دقيقة
         });
 
         // Remove event listener when the app is unmounted
@@ -473,6 +578,7 @@ const app = createApp({
             totalTasks,
             completedTasksCount,
             remainingPhasesCount,
+            isLoading,
             // Countdown export
             countdown,
             // New CRUD operations
