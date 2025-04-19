@@ -1,8 +1,8 @@
 const { createApp, ref, computed } = Vue;
 
 // Supabase تهيئة
-const supabaseUrl = 'YOUR_SUPABASE_URL'; // استبدل بالرابط الخاص بك
-const supabaseKey = 'YOUR_SUPABASE_ANON_KEY'; // استبدل بالمفتاح الخاص بك
+const supabaseUrl = 'https://rzrlypasyyenwnksydpg.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ6cmx5cGFzeXllbndua3N5ZHBnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTMzNTA0MTAsImV4cCI6MjAyODkyNjQxMH0.oGq4mMq-w6AUJRXRYBM9JfPfVoWLaAmtBRU4KO_T1Ms';
 const supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
 const app = createApp({
