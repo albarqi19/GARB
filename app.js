@@ -1,9 +1,20 @@
 const { createApp, ref, computed } = Vue;
 
-// Supabase تهيئة
-const supabaseUrl = 'https://rzrlypasyyenwnksydpg.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ6cmx5cGFzeXllbndua3N5ZHBnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTMzNTA0MTAsImV4cCI6MjAyODkyNjQxMH0.oGq4mMq-w6AUJRXRYBM9JfPfVoWLaAmtBRU4KO_T1Ms';
-const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+// تهيئة Firebase
+const firebaseConfig = {
+  apiKey: "AIzaSyCJ_w62Y8FMgui47dJLOD4ftGvModi5hEs",
+  authDomain: "garb-7e365.firebaseapp.com",
+  databaseURL: "https://garb-7e365-default-rtdb.firebaseio.com",
+  projectId: "garb-7e365",
+  storageBucket: "garb-7e365.firebasestorage.app",
+  messagingSenderId: "394664139764",
+  appId: "1:394664139764:web:fc783964a979ad0856b7a1",
+  measurementId: "G-PXFVF6P8YE"
+};
+
+// تهيئة Firebase
+firebase.initializeApp(firebaseConfig);
+const database = firebase.database();
 
 const app = createApp({
     setup() {
@@ -142,55 +153,55 @@ const app = createApp({
             countdown.value = { days, hours, minutes, seconds };
         };
 
-        // Supabase وظائف التعامل مع
+        // Firebase وظائف التعامل مع
 
-        // جلب البيانات من Supabase
-        const fetchPhasesFromSupabase = async () => {
+        // جلب البيانات من Firebase
+        const fetchPhasesFromFirebase = async () => {
             try {
                 isLoading.value = true;
-                const { data, error } = await supabase
-                    .from('phases')
-                    .select('*')
-                    .order('id', { ascending: true });
-
-                if (error) {
-                    throw error;
-                }
-
-                if (data && data.length > 0) {
-                    phases.value = data;
-                    showNotification('تم جلب البيانات بنجاح');
-                } else {
-                    // إذا لم تكن هناك بيانات، نستخدم البيانات الافتراضية ونحفظها
-                    await saveToSupabase();
-                }
+                const phasesRef = database.ref('phases');
+                
+                phasesRef.on('value', (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) {
+                        // تحويل البيانات من تنسيق القاموس إلى مصفوفة
+                        const phasesArray = Object.values(data);
+                        // ترتيب المراحل حسب معرف المرحلة
+                        phasesArray.sort((a, b) => a.id - b.id);
+                        phases.value = phasesArray;
+                        showNotification('تم جلب البيانات بنجاح');
+                    } else {
+                        // إذا لم تكن هناك بيانات، نستخدم البيانات الافتراضية ونحفظها
+                        saveToFirebase();
+                    }
+                    isLoading.value = false;
+                }, (error) => {
+                    console.error('خطأ في جلب البيانات:', error);
+                    showNotification('حدث خطأ أثناء جلب البيانات');
+                    isLoading.value = false;
+                });
             } catch (error) {
                 console.error('خطأ في جلب البيانات:', error.message);
                 showNotification('حدث خطأ أثناء جلب البيانات');
-            } finally {
                 isLoading.value = false;
             }
         };
 
-        // حفظ البيانات في Supabase
-        const saveToSupabase = async () => {
+        // حفظ البيانات في Firebase
+        const saveToFirebase = async () => {
             try {
                 isLoading.value = true;
                 
-                // حذف جميع البيانات السابقة
-                const { error: deleteError } = await supabase
-                    .from('phases')
-                    .delete()
-                    .not('id', 'is', null);
+                // حفظ كل مرحلة كعنصر منفصل في قاعدة البيانات
+                const phasesRef = database.ref('phases');
                 
-                if (deleteError) throw deleteError;
+                // حذف البيانات الحالية ثم إضافة البيانات الجديدة
+                await phasesRef.remove();
                 
-                // إضافة البيانات الجديدة
-                const { error: insertError } = await supabase
-                    .from('phases')
-                    .insert(phases.value);
-                
-                if (insertError) throw insertError;
+                // إضافة كل مرحلة كعنصر منفصل مع استخدام معرف المرحلة كمفتاح
+                for (const phase of phases.value) {
+                    await phasesRef.child(phase.id.toString()).set(phase);
+                }
                 
                 showNotification('تم حفظ البيانات بنجاح!');
             } catch (error) {
@@ -417,14 +428,14 @@ const app = createApp({
             }
         };
 
-        // Save changes to both local storage and Supabase
+        // Save changes to both local storage and Firebase
         const saveChanges = async () => {
             // حفظ في التخزين المحلي للاحتياط
             localStorage.setItem('projectPhases', JSON.stringify(phases.value));
             localStorage.setItem('adminEnabled', adminButtonVisible.value);
             
-            // حفظ في Supabase
-            await saveToSupabase();
+            // حفظ في Firebase
+            await saveToFirebase();
             
             // تحديث تاريخ آخر تحديث
             updateLastUpdated();
@@ -436,8 +447,8 @@ const app = createApp({
                 phases.value = JSON.parse(JSON.stringify(originalPhases));
                 localStorage.removeItem('projectPhases');
                 
-                // إعادة تعيين البيانات في Supabase أيضاً
-                await saveToSupabase();
+                // إعادة تعيين البيانات في Firebase أيضاً
+                await saveToFirebase();
                 
                 showNotification('تم إعادة تعيين المراحل بنجاح!');
             }
@@ -446,8 +457,8 @@ const app = createApp({
         // Load saved data if exists
         const loadSavedData = async () => {
             try {
-                // محاولة جلب البيانات من Supabase أولاً
-                await fetchPhasesFromSupabase();
+                // محاولة جلب البيانات من Firebase أولاً
+                await fetchPhasesFromFirebase();
                 
                 // إذا فشلت العملية، استخدام التخزين المحلي كاحتياطي
                 if (phases.value.length === 0) {
@@ -455,8 +466,8 @@ const app = createApp({
                     if (savedPhases) {
                         phases.value = JSON.parse(savedPhases);
                         
-                        // حفظ البيانات المحلية إلى Supabase
-                        await saveToSupabase();
+                        // حفظ البيانات المحلية إلى Firebase
+                        await saveToFirebase();
                     }
                 }
             } catch (error) {
@@ -550,16 +561,13 @@ const app = createApp({
             
             // جلب البيانات عند بدء التطبيق
             loadSavedData();
-            
-            // تشغيل التحديث التلقائي كل دقيقة لمزامنة البيانات
-            setInterval(() => {
-                fetchPhasesFromSupabase();
-            }, 60000); // تحديث كل دقيقة
         });
 
         // Remove event listener when the app is unmounted
         Vue.onUnmounted(() => {
             window.removeEventListener('keydown', handleKeyboardShortcut);
+            // إلغاء الاشتراك في تحديثات Firebase
+            database.ref('phases').off();
         });
 
         return {
