@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>منصة غرب - تتبع التقدم</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <div class="main-content">
+            <div class="topbar">
+                <div class="brand" @click="handleLogoClick">
+                    <h1>منصة غرب</h1>
+                </div>
+                <div class="admin-actions" v-if="adminButtonVisible">
+                    <button class="btn-admin4" @click="toggleAdmin"><i class="fas fa-cog"></i> ADMIN4</button>
+                </div>
+            </div>
+
+            <!-- Notification Toast -->
+            <div class="notification-toast" :class="{ 'show': notification.show }">
+                <div class="notification-content">
+                    {{ notification.message }}
+                </div>
+            </div>
+
+            <div class="admin-panel" v-if="showAdmin">
+                <div class="admin-header">
+                    <h2>لوحة التحكم ADMIN4</h2>
+                    <button @click="toggleAdmin" class="btn-close"><i class="fas fa-times"></i></button>
+                </div>
+                
+                <!-- إضافة مرحلة جديدة -->
+                <div class="admin-section">
+                    <h3 class="admin-section-title">إضافة مرحلة جديدة</h3>
+                    <div class="admin-form">
+                        <div class="form-group">
+                            <label>عنوان المرحلة:</label>
+                            <input type="text" v-model="newPhase.title" placeholder="أدخل عنوان المرحلة">
+                        </div>
+                        <div class="form-group">
+                            <label>وصف المرحلة:</label>
+                            <textarea v-model="newPhase.description" placeholder="أدخل وصف المرحلة"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>الحالة:</label>
+                            <select v-model="newPhase.status">
+                                <option value="pending">قيد الانتظار</option>
+                                <option value="in-progress">جاري العمل</option>
+                                <option value="completed">مكتمل</option>
+                            </select>
+                        </div>
+                        <div class="form-actions">
+                            <button class="btn-primary" @click="addPhase">إضافة مرحلة</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- إدارة المراحل الحالية -->
+                <div class="admin-section">
+                    <h3 class="admin-section-title">إدارة المراحل</h3>
+                    
+                    <!-- نموذج تعديل مرحلة -->
+                    <div v-if="editingPhase" class="edit-phase-form">
+                        <h4>تعديل المرحلة</h4>
+                        <div class="form-group">
+                            <label>عنوان المرحلة:</label>
+                            <input type="text" v-model="editingPhase.title" placeholder="أدخل عنوان المرحلة">
+                        </div>
+                        <div class="form-group">
+                            <label>وصف المرحلة:</label>
+                            <textarea v-model="editingPhase.description" placeholder="أدخل وصف المرحلة"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>الحالة:</label>
+                            <select v-model="editingPhase.status">
+                                <option value="pending">قيد الانتظار</option>
+                                <option value="in-progress">جاري العمل</option>
+                                <option value="completed">مكتمل</option>
+                            </select>
+                        </div>
+                        <div class="form-actions">
+                            <button class="btn-primary" @click="savePhaseEdit">حفظ التعديلات</button>
+                            <button class="btn-secondary" @click="cancelEditPhase">إلغاء</button>
+                        </div>
+                    </div>
+                    
+                    <div class="phase-list">
+                        <div v-for="phase in phases" :key="'admin-'+phase.id" class="phase-control-item">
+                            <div class="phase-header">
+                                <div class="phase-title-section">
+                                    <h4>{{ phase.title }}</h4>
+                                    <div :class="['phase-status-badge', phase.status]">
+                                        {{ getStatusText(phase.status) }}
+                                    </div>
+                                </div>
+                                <div class="phase-actions">
+                                    <button class="btn-icon" @click="startEditPhase(phase)" title="تعديل المرحلة">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn-icon btn-danger" @click="deletePhase(phase.id)" title="حذف المرحلة">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="phase-tasks-admin">
+                                <h5>المهام</h5>
+                                <div class="task-list">
+                                    <div v-for="task in phase.tasks" :key="'admin-task-'+task.id" class="task-item-admin">
+                                        <div class="task-content">
+                                            <input type="checkbox" v-model="task.completed" :id="'task-'+phase.id+'-'+task.id">
+                                            <label :for="'task-'+phase.id+'-'+task.id">{{ task.name }}</label>
+                                        </div>
+                                        <button class="btn-icon btn-small btn-danger" @click="deleteTask(phase.id, task.id)" title="حذف المهمة">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- إضافة مهمة جديدة -->
+                                <div class="add-task-form">
+                                    <input type="text" 
+                                           v-model="newTask.name" 
+                                           @keyup.enter="newTask.phaseId = phase.id; addTask(phase.id)" 
+                                           placeholder="أضف مهمة جديدة">
+                                    <button class="btn-primary btn-small" @click="newTask.phaseId = phase.id; addTask(phase.id)">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="admin-footer">
+                    <button class="btn-save" @click="saveChanges(); updateLastUpdated()">حفظ جميع التغييرات</button>
+                    <button class="btn-reset" @click="resetPhases">إعادة تعيين</button>
+                </div>
+            </div>
+
+            <div class="container">
+                <div class="logo-container">
+                    <img src="غرب (1).png" alt="شعار منصة غرب">
+                </div>
+                
+                <header class="page-header">
+                    <h1>لوحة التقدم</h1>
+                    <div class="date-info">آخر تحديث: {{ formattedDate }}</div>
+                </header>
+
+                <div class="dashboard-cards">
+                    <div class="dashboard-card">
+                        <div class="card-icon"><i class="fas fa-tasks"></i></div>
+                        <div class="card-info">
+                            <h3>إجمالي المهام</h3>
+                            <p>{{ totalTasks }}</p>
+                        </div>
+                    </div>
+                    <div class="dashboard-card">
+                        <div class="card-icon"><i class="fas fa-check-circle"></i></div>
+                        <div class="card-info">
+                            <h3>المهام المكتملة</h3>
+                            <p>{{ completedTasksCount }}</p>
+                        </div>
+                    </div>
+                    <div class="dashboard-card">
+                        <div class="card-icon"><i class="fas fa-hourglass-half"></i></div>
+                        <div class="card-info">
+                            <h3>المراحل المتبقية</h3>
+                            <p>{{ remainingPhasesCount }}</p>
+                        </div>
+                    </div>
+                    <div class="dashboard-card">
+                        <div class="card-icon"><i class="fas fa-calendar-alt"></i></div>
+                        <div class="card-info">
+                            <h3>العد التنازلي للإطلاق</h3>
+                            <p>{{ countdown.days }} يوم {{ countdown.hours }} ساعة</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="progress-bar-container">
+                    <div class="progress-title">
+                        <h3>نسبة الإكتمال الكلية</h3>
+                        <span>{{ overallProgress }}%</span>
+                    </div>
+                    <div class="progress-bar" :style="{ width: overallProgress + '%' }"></div>
+                </div>
+
+                <div class="content-section">
+                    <div class="section-header">
+                        <h2>مراحل المشروع</h2>
+                    </div>
+
+                    <div class="progress-tracker">
+                        <div v-for="phase in phases" :key="phase.id" class="phase-card">
+                            <div class="phase-header">
+                                <h3 class="phase-title">{{ phase.title }}</h3>
+                                <div :class="['phase-status', phase.status]">
+                                    <i :class="phase.status === 'completed' ? 'fas fa-check-circle' : phase.status === 'in-progress' ? 'fas fa-spinner fa-spin' : 'fas fa-clock'"></i>
+                                    <span>{{ getStatusText(phase.status) }}</span>
+                                </div>
+                            </div>
+                            
+                            <p class="phase-description">{{ phase.description }}</p>
+                            
+                            <div class="phase-tasks">
+                                <div v-for="task in phase.tasks" :key="task.id" class="task-item">
+                                    <i :class="['task-icon', task.completed ? 'fas fa-check-circle task-completed' : 'far fa-circle task-pending']"></i>
+                                    <span>{{ task.name }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <footer>
+                <!-- تم إزالة النص من هنا -->
+            </footer>
+        </div>
+    </div>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
