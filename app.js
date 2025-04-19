@@ -28,6 +28,8 @@ const app = createApp({
         let clickTimer = null;
         // حالة التحميل
         const isLoading = ref(false);
+        // حالة تهيئة التطبيق
+        const isInitialized = ref(false);
 
         // New phase form
         const newPhase = ref({
@@ -241,10 +243,17 @@ const app = createApp({
                     if (currentData !== newData) {
                         console.log('تم استلام تحديث من قاعدة البيانات');
                         phases.value = phasesArray;
+                        
+                        // منع إغلاق لوحة الإدمن عند تحديث البيانات إذا كانت مفتوحة بالفعل
+                        // لا نقوم بتغيير حالة لوحة الإدمن هنا
                     }
                 }
+                
+                // تعيين حالة التهيئة إلى true بعد استلام البيانات
+                isInitialized.value = true;
             }, (error) => {
                 console.error('خطأ في مراقبة التغييرات:', error);
+                isInitialized.value = true;
             });
         };
 
@@ -338,6 +347,8 @@ const app = createApp({
         // Toggle admin panel
         const toggleAdmin = () => {
             showAdmin.value = !showAdmin.value;
+            // حفظ حالة لوحة الإدمن في localStorage
+            localStorage.setItem('showAdmin', showAdmin.value);
         };
 
         // Update phase status
@@ -528,6 +539,10 @@ const app = createApp({
                         await saveToFirebase();
                     }
                 }
+
+                // تعيين حالة التهيئة إلى true بعد تحميل البيانات
+                isInitialized.value = true;
+                
             } catch (error) {
                 console.error('خطأ في تحميل البيانات:', error);
                 
@@ -536,6 +551,9 @@ const app = createApp({
                 if (savedPhases) {
                     phases.value = JSON.parse(savedPhases);
                 }
+                
+                // تعيين حالة التهيئة إلى true حتى في حالة الخطأ
+                isInitialized.value = true;
             }
         };
 
@@ -600,10 +618,17 @@ const app = createApp({
         Vue.onMounted(() => {
             window.addEventListener('keydown', handleKeyboardShortcut);
 
-            // Check for admin password in local storage on startup
+            // تأكد من تحميل حالة لوحة الإدمن من localStorage في بداية التطبيق
+            const savedShowAdmin = localStorage.getItem('showAdmin');
             const isAdminEnabled = localStorage.getItem('adminEnabled');
+            
             if (isAdminEnabled === 'true') {
                 adminButtonVisible.value = true;
+            }
+            
+            // فقط إذا كان savedShowAdmin موجوداً، قم بتعيين showAdmin بناءً عليه
+            if (savedShowAdmin) {
+                showAdmin.value = savedShowAdmin === 'true';
             }
 
             // Load last updated date if available
