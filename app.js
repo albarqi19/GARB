@@ -106,12 +106,10 @@ const app = createApp({
         // Create a deep copy of original phases for reactivity
         const phases = ref(JSON.parse(JSON.stringify(originalPhases)));
 
-        // تاريخ اليوم وتاريخ الانتهاء (30 يوم من الآن)
-        const today = ref(new Date()); // تاريخ اليوم
-        const launchDate = ref(new Date(today.value));
-        launchDate.value.setDate(today.value.getDate() + 30); // إضافة 30 يوم إلى تاريخ اليوم
+        // تعيين تاريخ محدد (8 مايو 2025) للعد التنازلي
+        const launchDate = ref(new Date(2025, 4, 10)); // شهر مايو هو الشهر 4 (الأشهر تبدأ من 0)
         
-        // Contador regresivo dinámico
+        // الوقت المتبقي للعد التنازلي
         const countdown = ref({
             days: 0,
             hours: 0,
@@ -119,7 +117,7 @@ const app = createApp({
             seconds: 0
         });
         
-        // Función para actualizar el contador regresivo
+        // دالة تحديث العد التنازلي
         const updateCountdown = () => {
             const now = new Date();
             const timeLeft = launchDate.value.getTime() - now.getTime();
